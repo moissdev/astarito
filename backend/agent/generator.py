@@ -7,21 +7,36 @@ congela en un `GameMap`. Toda la aleatoriedad sale de un único
 
 import random
 
-from .config import CAVES, HEIGHT, SLABS, WIDTH, StructureSpec
+from .config import (
+    CAVES,
+    HEIGHT,
+    LAKES,
+    SLABS,
+    STALAGMITE_LAYERS,
+    STALAGMITE_PROB,
+    WIDTH,
+    StructureSpec,
+)
 from .materials import Material
 
 Grid = list[list[Material]]
 
 # Tope de rectángulos por estructura: evita un ciclo infinito si las capas se
-# quedaran sin tierra antes de alcanzar la cobertura.
+# quedaran sin tierra (o sin huecos válidos) antes de alcanzar la cobertura.
 _MAX_PLACEMENTS = 10_000
+
+# Materiales sobre los que puede asentarse un lago de lava.
+_LAKE_GROUND = (Material.EARTH, Material.STONE)
 
 
 def _generate_once(rng: random.Random) -> Grid:
-    """Un intento de generación (pasos 1 a 3 de la sección 5)."""
+    """Un intento de generación (pasos 1 a 5 de la sección 5).
+    El orden de los pasos fija el orden en que se consume `rng`."""
     grid = [[Material.EARTH] * WIDTH for _ in range(HEIGHT)]
     _place_structures(grid, rng, CAVES, Material.EMPTY)
     _place_structures(grid, rng, SLABS, Material.STONE)
+    _place_stalagmites(grid, rng)
+    _place_lava_lakes(grid, rng)
     return grid
 
 
@@ -45,3 +60,41 @@ def _place_structures(grid: Grid, rng: random.Random, spec: StructureSpec, mater
                 if grid[y][x] is Material.EARTH:
                     grid[y][x] = material
                     placed += 1
+
+
+def _place_stalagmites(grid: Grid, rng: random.Random) -> None:
+    """Convierte casillas de piso de cueva (vacías con una casilla no vacía debajo)."""
+    first, last = STALAGMITE_LAYERS[0] - 1, STALAGMITE_LAYERS[1] - 1
+    # Primero se identifican todos los pisos y después se convierten: si se
+    # convirtiera sobre la marcha, el aire encima de una estalagmita nueva
+    # parecería piso y se apilarían.
+    floor = [
+        (x, y)
+        for y in range(first, last + 1)
+        for x in range(WIDTH)
+        if grid[y][x] is Material.EMPTY and grid[y + 1][x] is not Material.EMPTY
+    ]
+    for x, y in floor:
+        if rng.random() < STALAGMITE_PROB:
+            grid[y][x] = Material.STALAGMITE
+
+
+def _place_lava_lakes(grid: Grid, rng: random.Random) -> None:
+    """Rectángulos cuya huella completa es tierra o piedra.
+    A diferencia de cuevas y lajas, un lago no se recorta: si alguna casilla de
+    su huella no es tierra ni piedra, se descarta completo y se elige otro."""
+    first, last = LAKES.layers[0] - 1, LAKES.layers[1] - 1
+    target = LAKES.coverage * WIDTH * (last - first + 1)
+    placed = 0
+    for _ in range(_MAX_PLACEMENTS):
+        if placed >= target:
+            break
+        width = rng.randint(*LAKES.width)
+        height = rng.randint(*LAKES.height)
+        left = rng.randint(0, WIDTH - width)
+        top = rng.randint(first, last - height + 1)
+        footprint = [(x, y) for y in range(top, top + height) for x in range(left, left + width)]
+        if all(grid[y][x] in _LAKE_GROUND for x, y in footprint):
+            for x, y in footprint:
+                grid[y][x] = Material.LAVA
+            placed += len(footprint)
