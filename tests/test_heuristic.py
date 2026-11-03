@@ -1,13 +1,14 @@
 """Heurística relajada: exactitud del Dijkstra inverso, admisibilidad y consistencia.
 
-Por ahora se usan mapas aleatorios de prueba; en el checkpoint 8 se agregan
-mapas del generador real.
+Se usan mapas aleatorios de prueba (muchas casillas sin ruta) y mapas del
+generador real.
 """
 
 import math
 
 import pytest
 
+from backend.agent.generator import generate_map
 from backend.agent.grid import GameMap
 from backend.agent.heuristic import cost_to_go_table
 from backend.agent.materials import Material
@@ -16,6 +17,13 @@ from backend.agent.rules import blocked_cells, goal_cells, successors
 from .maps import forward_cost, random_map
 
 SEEDS = range(25)
+RANDOM_MAPS = [random_map(seed) for seed in SEEDS]
+MAPS = RANDOM_MAPS + [generate_map(seed) for seed in range(5)]
+
+
+def map_id(game_map: GameMap) -> str:
+    kind = "gen" if game_map.width == 25 else "rand"
+    return f"{kind}{game_map.seed}"
 
 
 def real_states(game_map: GameMap) -> list[tuple[int, int]]:
@@ -48,34 +56,32 @@ def test_known_values_relaxed_vs_exact() -> None:
     assert h[1][2] == exact[1][2] == math.inf      # la lava misma
 
 
-@pytest.mark.parametrize("seed", SEEDS)
-def test_exact_table_matches_forward_dijkstra(seed: int) -> None:
-    game_map = random_map(seed)
+# Solo mapas pequeños: comparar cada casilla de un mapa de 25 × 75 es lento, y en
+# los mapas generados la prueba de A* ya compara la tabla en las 25 columnas.
+@pytest.mark.parametrize("game_map", RANDOM_MAPS, ids=map_id)
+def test_exact_table_matches_forward_dijkstra(game_map: GameMap) -> None:
     exact = cost_to_go_table(game_map, relaxed=False)
     for x, y in real_states(game_map):
         assert exact[y][x] == forward_cost(game_map, (x, y))
 
 
-@pytest.mark.parametrize("seed", SEEDS)
-def test_h_is_zero_on_goals(seed: int) -> None:
-    game_map = random_map(seed)
+@pytest.mark.parametrize("game_map", MAPS, ids=map_id)
+def test_h_is_zero_on_goals(game_map: GameMap) -> None:
     h = cost_to_go_table(game_map, relaxed=True)
     for x, y in goal_cells(game_map, blocked_cells(game_map)):
         assert h[y][x] == 0
 
 
-@pytest.mark.parametrize("seed", SEEDS)
-def test_h_is_admissible(seed: int) -> None:
-    game_map = random_map(seed)
+@pytest.mark.parametrize("game_map", MAPS, ids=map_id)
+def test_h_is_admissible(game_map: GameMap) -> None:
     h = cost_to_go_table(game_map, relaxed=True)
     exact = cost_to_go_table(game_map, relaxed=False)
     for x, y in real_states(game_map):
         assert h[y][x] <= exact[y][x]
 
 
-@pytest.mark.parametrize("seed", SEEDS)
-def test_h_is_consistent(seed: int) -> None:
-    game_map = random_map(seed)
+@pytest.mark.parametrize("game_map", MAPS, ids=map_id)
+def test_h_is_consistent(game_map: GameMap) -> None:
     h = cost_to_go_table(game_map, relaxed=True)
     blocked = blocked_cells(game_map)
     for x, y in real_states(game_map):

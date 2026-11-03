@@ -1,13 +1,14 @@
 """A*: optimalidad frente al Dijkstra exacto, poda por batería y validez de la traza.
 
-Por ahora se usan mapas aleatorios de prueba de 25 × 75 con poca lava (costos
-alrededor de 100); en el checkpoint 8 se agregan mapas del generador real.
+Se usan mapas aleatorios de prueba de 25 × 75 con poca lava (costos alrededor
+de 100) y mapas del generador real.
 """
 
 import math
 
 import pytest
 
+from backend.agent.generator import generate_map
 from backend.agent.grid import GameMap
 from backend.agent.heuristic import cost_to_go_table
 from backend.agent.rules import blocked_cells, goal_cells, successors
@@ -20,7 +21,13 @@ WIDTH, HEIGHT = 25, 75
 
 
 def maps() -> list[GameMap]:
-    return [random_map(seed, WIDTH, HEIGHT, SEARCH_WEIGHTS) for seed in SEEDS]
+    random_maps = [random_map(seed, WIDTH, HEIGHT, SEARCH_WEIGHTS) for seed in SEEDS]
+    return random_maps + [generate_map(seed) for seed in range(100, 106)]
+
+
+def map_id(game_map: GameMap) -> str:
+    kind = "gen" if game_map.seed >= 100 else "rand"
+    return f"{kind}{game_map.seed}"
 
 
 def assert_valid_path(game_map: GameMap, start_x: int, result: SearchResult) -> None:
@@ -39,7 +46,7 @@ def assert_valid_path(game_map: GameMap, start_x: int, result: SearchResult) -> 
 
 # --- Optimalidad -----------------------------------------------------------
 
-@pytest.mark.parametrize("game_map", maps(), ids=lambda m: f"seed{m.seed}")
+@pytest.mark.parametrize("game_map", maps(), ids=map_id)
 def test_a_star_matches_exact_dijkstra_on_all_columns(game_map: GameMap) -> None:
     exact = cost_to_go_table(game_map, relaxed=False)
     for start_x in range(WIDTH):
@@ -52,7 +59,7 @@ def test_a_star_matches_exact_dijkstra_on_all_columns(game_map: GameMap) -> None
             assert_valid_path(game_map, start_x, result)
 
 
-@pytest.mark.parametrize("game_map", maps(), ids=lambda m: f"seed{m.seed}")
+@pytest.mark.parametrize("game_map", maps(), ids=map_id)
 def test_battery_boundary(game_map: GameMap) -> None:
     # Con batería igual al costo óptimo hay ruta (llegar a 0 % cuenta);
     # con una unidad menos no la hay.
@@ -93,7 +100,7 @@ def test_ucs_finds_same_cost_and_expands_more() -> None:
 
 # --- Traza -----------------------------------------------------------------
 
-@pytest.mark.parametrize("game_map", maps(), ids=lambda m: f"seed{m.seed}")
+@pytest.mark.parametrize("game_map", maps(), ids=map_id)
 def test_trace_invariants(game_map: GameMap) -> None:
     for start_x in range(WIDTH):
         result = a_star(game_map, start_x, battery=None)

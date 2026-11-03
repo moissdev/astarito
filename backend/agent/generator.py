@@ -5,10 +5,13 @@ congela en un `GameMap`. Toda la aleatoriedad sale de un único
 `random.Random(seed)`, por lo que la misma semilla produce el mismo mapa.
 """
 
+import math
 import random
 
 from .config import (
     CAVES,
+    GOLD_CENTER_COLUMNS,
+    GOLD_CENTER_LAYERS,
     HEIGHT,
     LAKES,
     SLABS,
@@ -17,6 +20,8 @@ from .config import (
     WIDTH,
     StructureSpec,
 )
+from .grid import Cell, GameMap
+from .heuristic import cost_to_go_table
 from .materials import Material
 
 Grid = list[list[Material]]
@@ -29,15 +34,45 @@ _MAX_PLACEMENTS = 10_000
 _LAKE_GROUND = (Material.EARTH, Material.STONE)
 
 
-def _generate_once(rng: random.Random) -> Grid:
-    """Un intento de generación (pasos 1 a 5 de la sección 5).
+class MapGenerationError(Exception):
+    """Se agotaron los intentos sin obtener un mapa con ruta técnica."""
+
+
+def generate_map(seed: int, max_attempts: int = 50) -> GameMap:
+    """Genera mapas con un mismo generador sembrado hasta obtener uno con ruta
+    técnica al oro. Es determinista: la misma semilla produce el mismo mapa.
+    Lanza MapGenerationError si se agotan los intentos."""
+    rng = random.Random(seed)
+    for attempt in range(1, max_attempts + 1):
+        grid, gold = _generate_once(rng)
+        game_map = GameMap(
+            seed=seed,
+            attempts=attempt,
+            cells=tuple(tuple(row) for row in grid),
+            gold=gold,
+        )
+        if has_technical_route(game_map):
+            return game_map
+    raise MapGenerationError(f"semilla {seed}: sin ruta técnica tras {max_attempts} intentos")
+
+
+def has_technical_route(game_map: GameMap) -> bool:
+    """Verdadero si alguna casilla de la capa 1 tiene costo finito en la tabla exacta.
+    Ignora la batería: solo importa que el oro sea alcanzable."""
+    exact = cost_to_go_table(game_map, relaxed=False)
+    return any(cost != math.inf for cost in exact[0])
+
+
+def _generate_once(rng: random.Random) -> tuple[Grid, frozenset[Cell]]:
+    """Un intento de generación (pasos 1 a 6 de la sección 5).
     El orden de los pasos fija el orden en que se consume `rng`."""
     grid = [[Material.EARTH] * WIDTH for _ in range(HEIGHT)]
     _place_structures(grid, rng, CAVES, Material.EMPTY)
     _place_structures(grid, rng, SLABS, Material.STONE)
     _place_stalagmites(grid, rng)
     _place_lava_lakes(grid, rng)
-    return grid
+    gold = _place_gold(grid, rng)
+    return grid, gold
 
 
 def _place_structures(grid: Grid, rng: random.Random, spec: StructureSpec, material: Material) -> None:
@@ -98,3 +133,14 @@ def _place_lava_lakes(grid: Grid, rng: random.Random) -> None:
             for x, y in footprint:
                 grid[y][x] = Material.LAVA
             placed += len(footprint)
+
+
+def _place_gold(grid: Grid, rng: random.Random) -> frozenset[Cell]:
+    """Elige el centro de la veta y convierte en oro las 5 casillas del "+".
+    El oro sobrescribe cualquier material previo."""
+    cx = rng.randint(GOLD_CENTER_COLUMNS[0] - 1, GOLD_CENTER_COLUMNS[1] - 1)
+    cy = rng.randint(GOLD_CENTER_LAYERS[0] - 1, GOLD_CENTER_LAYERS[1] - 1)
+    gold = frozenset({(cx, cy), (cx - 1, cy), (cx + 1, cy), (cx, cy - 1), (cx, cy + 1)})
+    for x, y in gold:
+        grid[y][x] = Material.GOLD
+    return gold

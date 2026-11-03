@@ -1,8 +1,8 @@
 """Generador de mapas.
 
-Partes 1 y 2 (cuevas, lajas, estalagmitas y lava): se prueba `_generate_once`
-directamente; cuando exista `generate_map` (parte 3) las pruebas de mapas
-completos pasan a usarlo.
+Las pruebas de cada paso usan `stages`, que repite el primer intento de
+`_generate_once` y guarda el mapa tras cada paso. Las propiedades de los mapas
+aceptados se prueban sobre `generate_map`.
 """
 
 import copy
@@ -12,6 +12,8 @@ import pytest
 
 from backend.agent.config import (
     CAVES,
+    GOLD_CENTER_COLUMNS,
+    GOLD_CENTER_LAYERS,
     HEIGHT,
     LAKES,
     SLABS,
@@ -19,20 +21,33 @@ from backend.agent.config import (
     WIDTH,
     StructureSpec,
 )
+from backend.agent import generator
 from backend.agent.generator import (
     Grid,
+    MapGenerationError,
     _generate_once,
+    _place_gold,
     _place_lava_lakes,
     _place_stalagmites,
     _place_structures,
+    generate_map,
+    has_technical_route,
 )
+from backend.agent.grid import GameMap
 from backend.agent.materials import Material
+from backend.agent.rules import blocked_cells
 
 SEEDS = range(50)
 
 
 def grid_for(seed: int) -> Grid:
-    return _generate_once(random.Random(seed))
+    """Mapa del primer intento de la semilla (aceptado o no)."""
+    grid, _ = _generate_once(random.Random(seed))
+    return grid
+
+
+def map_for(seed: int) -> GameMap:
+    return generate_map(seed)
 
 
 def stages(seed: int) -> dict[str, Grid]:
@@ -47,7 +62,9 @@ def stages(seed: int) -> dict[str, Grid]:
     _place_stalagmites(grid, rng)
     snapshots["stalagmites"] = copy.deepcopy(grid)
     _place_lava_lakes(grid, rng)
-    snapshots["lava"] = grid
+    snapshots["lava"] = copy.deepcopy(grid)
+    _place_gold(grid, rng)
+    snapshots["gold"] = grid
     return snapshots
 
 
@@ -74,27 +91,33 @@ def count_in_layers(grid: Grid, material: Material, spec: StructureSpec) -> int:
 def test_stages_helper_matches_generator() -> None:
     # Si _generate_once cambia de orden, este ayudante de pruebas debe cambiar también.
     for seed in range(5):
-        assert stages(seed)["lava"] == grid_for(seed)
+        assert stages(seed)["gold"] == grid_for(seed)
 
 
-def test_same_seed_same_grid() -> None:
-    assert grid_for(42) == grid_for(42)
-    assert grid_for(42) != grid_for(43)
+def test_same_seed_same_map() -> None:
+    assert map_for(42) == map_for(42)
+    assert map_for(42) != map_for(43)
 
 
-def test_dimensions() -> None:
-    grid = grid_for(0)
-    assert len(grid) == HEIGHT and all(len(row) == WIDTH for row in grid)
+def test_dimensions_and_metadata() -> None:
+    game_map = map_for(0)
+    assert (game_map.width, game_map.height) == (WIDTH, HEIGHT)
+    assert game_map.seed == 0 and game_map.attempts >= 1
 
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_layer_one_is_all_earth(seed: int) -> None:
-    assert all(m is Material.EARTH for m in grid_for(seed)[0])
+    assert all(m is Material.EARTH for m in map_for(seed).cells[0])
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_no_cell_of_layer_one_is_blocked(seed: int) -> None:
+    assert not any(blocked_cells(map_for(seed))[0])
 
 
 @pytest.mark.parametrize("seed", SEEDS)
 def test_materials_stay_in_their_layers(seed: int) -> None:
-    grid = grid_for(seed)
+    grid = [list(row) for row in map_for(seed).cells]
     assert layers_with(grid, Material.EMPTY) <= layer_range(CAVES.layers)
     assert layers_with(grid, Material.STONE) <= layer_range(SLABS.layers)
     assert layers_with(grid, Material.STALAGMITE) <= layer_range(STALAGMITE_LAYERS)
@@ -176,3 +199,61 @@ def test_lava_coverage_is_reached() -> None:
     for seed in SEEDS:
         placed = count_in_layers(grid_for(seed), Material.LAVA, LAKES)
         assert target <= placed < target + biggest
+
+
+# --- Oro -------------------------------------------------------------------
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_gold_is_a_valid_plus(seed: int) -> None:
+    game_map = map_for(seed)
+    gold = game_map.gold
+    assert len(gold) == 5
+    # El centro es la única casilla con sus 4 vecinos de oro.
+    centers = [(x, y) for x, y in gold if {(x - 1, y), (x + 1, y), (x, y - 1), (x, y + 1)} <= gold]
+    assert len(centers) == 1
+    cx, cy = centers[0]
+    assert GOLD_CENTER_COLUMNS[0] <= cx + 1 <= GOLD_CENTER_COLUMNS[1]
+    assert GOLD_CENTER_LAYERS[0] <= cy + 1 <= GOLD_CENTER_LAYERS[1]
+
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_gold_overwrites_only_its_five_cells(seed: int) -> None:
+    snapshots = stages(seed)
+    before, after = snapshots["lava"], snapshots["gold"]
+    changed = {(x, y) for y in range(HEIGHT) for x in range(WIDTH) if before[y][x] is not after[y][x]}
+    assert changed <= cells_of(after, Material.GOLD)
+    assert len(cells_of(after, Material.GOLD)) == 5
+
+
+# --- Rechazo de semillas ---------------------------------------------------
+
+@pytest.mark.parametrize("seed", SEEDS)
+def test_accepted_maps_have_technical_route(seed: int) -> None:
+    assert has_technical_route(map_for(seed))
+
+
+def test_rejected_attempts_continue_the_same_rng() -> None:
+    # Una semilla rechazada en el primer intento acepta un mapa distinto al primero.
+    seed = next(s for s in range(2000) if map_for(s).attempts > 1)
+    game_map = map_for(seed)
+    first_try = grid_for(seed)
+    assert [list(row) for row in game_map.cells] != first_try
+    assert not has_technical_route(
+        GameMap(
+            seed=seed,
+            attempts=1,
+            cells=tuple(tuple(row) for row in first_try),
+            gold=frozenset(cells_of(first_try, Material.GOLD)),
+        )
+    )
+
+
+def test_rejection_rate_is_low() -> None:
+    rejected = sum(map_for(seed).attempts > 1 for seed in range(500))
+    assert rejected / 500 < 0.02
+
+
+def test_raises_when_attempts_run_out(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(generator, "has_technical_route", lambda _: False)
+    with pytest.raises(MapGenerationError):
+        generate_map(0, max_attempts=3)
