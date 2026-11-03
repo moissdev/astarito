@@ -1,0 +1,29 @@
+/* Estilos mínimos de la vista provisional; el diseño definitivo llega en el checkpoint 15. */
+:root {
+  color-scheme: light dark;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0 auto;
+  max-width: 48rem;
+  padding: 1rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+input[type="number"] {
+  width: 12rem;
+}
+
+pre {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  line-height: 1.15;
+  overflow-x: auto;
+}
