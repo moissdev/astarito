@@ -36,7 +36,8 @@ Moisés, estudiante de último año de Ing. en Software (México). Fuerte en fro
 - Backend FastAPI; núcleo Python puro en `backend/agent` (sin dependencia del framework web). Frontend Vite + TypeScript con canvas.
 - API **sin estado**: el mapa se regenera desde la semilla. `POST /api/solve` devuelve la traza completa y el navegador la reproduce (sin WebSockets). Endpoints: `GET /api/health`, `GET /api/map?seed`, `POST /api/solve`.
 - Despliegue en **Vercel Hobby** (gratis, uso personal/no comercial): FastAPI detectado por dependencias, `[tool.vercel] entrypoint = "backend.api:app"` en `pyproject.toml`; frontend compilado en `public/`.
-- **Sin validar aún**: FastAPI + estáticos en `public/` juntos, y la Deployment Protection por defecto. Hacer un despliegue mínimo de prueba al inicio y revisarlo en ventana de incógnito. Plan B: dos proyectos Vercel con CORS.
+- **Validado en el checkpoint 2** (2026-11-03): FastAPI + estáticos en `public/` funcionan en un solo proyecto; Python 3.12 confirmado en el build; la producción es pública en incógnito (Deployment Protection estándar). El plan B (dos proyectos con CORS) queda descartado.
+- Rama de producción en Vercel: `main`. Se trabaja en `develop` y el usuario fusiona `develop` → `main` para desplegar.
 
 ## Estructura
 Ver el árbol y los esqueletos de módulos en la sección 12 de `docs/propuesta.md`. Resumen: `backend/{api,schemas}.py`, `backend/agent/{config,materials,grid,rules,heuristic,generator,search,metrics}.py`, `tests/`, `frontend/src/{api,state,render,playback,ui,styles}`, `public/` (salida de build).
