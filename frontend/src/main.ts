@@ -11,20 +11,30 @@ import { MetricsPanel } from "./ui/MetricsPanel";
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
   <header class="app-header">
-    <h1>Astarito</h1>
-    <p>Robot minero que busca con A* la ruta de menor consumo hasta el oro.</p>
+    <svg class="logo" viewBox="0 0 3 3" aria-hidden="true">
+      <path d="M1 0h1v1h1v1H2v1H1V2H0V1h1z" />
+    </svg>
+    <div>
+      <h1>Astarito</h1>
+      <p>Un robot minero busca con A* la ruta de menor consumo hasta la veta de oro.</p>
+    </div>
   </header>
   <main class="layout">
-    <aside class="sidebar"></aside>
     <div class="map-frame" role="img" aria-label="Mapa del corte sagital, 25 columnas por 75 capas"></div>
   </main>
+  <footer class="app-footer">
+    Fundamentos de IA · A* (w = 1) con heurística de problema relajado ·
+    la semilla en la URL permite compartir un mapa.
+  </footer>
 `;
 
-const sidebar = app.querySelector<HTMLElement>(".sidebar")!;
+// Los paneles son hijos directos de la cuadrícula: así el CSS puede ordenarlos
+// distinto en escritorio (barra lateral) y en móvil (mapa justo tras los controles).
+const layout = app.querySelector<HTMLElement>(".layout")!;
 const controls = new Controls();
 const metrics = new MetricsPanel();
 const legend = new Legend();
-sidebar.append(controls.element, metrics.element, legend.element);
+layout.prepend(controls.element, metrics.element, legend.element);
 
 const mapCanvas = new MapCanvas(app.querySelector<HTMLDivElement>(".map-frame")!);
 // Clic en la capa 1: elige esa columna como inicio y resuelve.

@@ -17,6 +17,20 @@ export function solveAndPlay(startX: number): void {
   void solveFrom(startX).then(play);
 }
 
+/** Iconos de la reproducción (SVG en línea, toman el color del texto). */
+const ICONS = {
+  toStart: '<path d="M6 5h2v14H6zM9 12l10-7v14z"/>',
+  back: '<path d="M15.5 5 8.5 12l7 7 1.5-1.5-5.5-5.5L17 6.5z"/>',
+  play: '<path d="M8 5v14l11-7z"/>',
+  pause: '<path d="M7 5h4v14H7zM13 5h4v14h-4z"/>',
+  forward: '<path d="M8.5 5l7 7-7 7L7 17.5l5.5-5.5L7 6.5z"/>',
+  toEnd: '<path d="M5 5v14l10-7zM16 5h2v14h-2z"/>',
+} as const;
+
+function icon(name: keyof typeof ICONS): string {
+  return `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[name]}</svg>`;
+}
+
 const STATUS_TEXT: Record<AppState["status"], string> = {
   idle: "",
   "loading-map": "Generando mapa…",
@@ -60,11 +74,13 @@ export class Controls {
       <div class="field" data-role="playback" hidden>
         <span class="label">Reproducción</span>
         <div class="row">
-          <button type="button" data-action="to-start" title="Ir al inicio (Inicio)" aria-label="Ir al inicio">⏮</button>
-          <button type="button" data-action="back" title="Paso atrás (←)" aria-label="Paso atrás">◀</button>
-          <button type="button" data-action="toggle" title="Reproducir o pausar (Espacio)" aria-label="Reproducir">▶</button>
-          <button type="button" data-action="forward" title="Paso adelante (→)" aria-label="Paso adelante">▶|</button>
-          <button type="button" data-action="to-end" title="Ir al final (Fin)" aria-label="Ir al final">⏭</button>
+          <div class="button-group">
+            <button type="button" class="icon" data-action="to-start" title="Ir al inicio (Inicio)" aria-label="Ir al inicio">${icon("toStart")}</button>
+            <button type="button" class="icon" data-action="back" title="Paso atrás (←)" aria-label="Paso atrás">${icon("back")}</button>
+            <button type="button" class="icon play" data-action="toggle" title="Reproducir o pausar (Espacio)" aria-label="Reproducir">${icon("play")}</button>
+            <button type="button" class="icon" data-action="forward" title="Paso adelante (→)" aria-label="Paso adelante">${icon("forward")}</button>
+            <button type="button" class="icon" data-action="to-end" title="Ir al final (Fin)" aria-label="Ir al final">${icon("toEnd")}</button>
+          </div>
           <select data-role="speed" aria-label="Velocidad"></select>
         </div>
         <div class="row">
@@ -140,8 +156,13 @@ export class Controls {
 
     const total = state.solution?.expansions.length ?? 0;
     this.playback.hidden = total === 0;
-    this.toggleButton.textContent = state.playing ? "⏸" : "▶";
-    this.toggleButton.setAttribute("aria-label", state.playing ? "Pausar" : "Reproducir");
+    // Solo se cambia el icono cuando cambia el estado, no en cada cuadro.
+    const playing = String(state.playing);
+    if (this.toggleButton.dataset.playing !== playing) {
+      this.toggleButton.dataset.playing = playing;
+      this.toggleButton.innerHTML = icon(state.playing ? "pause" : "play");
+      this.toggleButton.setAttribute("aria-label", state.playing ? "Pausar" : "Reproducir");
+    }
     this.speedSelect.value = String(state.speed);
     this.stepInput.max = String(total);
     this.stepInput.value = String(state.step);

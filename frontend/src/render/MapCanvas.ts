@@ -73,12 +73,17 @@ export class MapCanvas {
       return;
     }
     this.element.hidden = false;
+    // Espacio útil del contenedor: sin su relleno (padding).
+    const style = getComputedStyle(this.container);
+    const padX = parseFloat(style.paddingLeft) + parseFloat(style.paddingRight);
+    const padY = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
     const top = this.container.getBoundingClientRect().top + window.scrollY;
-    const availHeight = window.innerHeight - Math.min(top, window.innerHeight / 3) - BOTTOM_MARGIN;
+    const availHeight =
+      window.innerHeight - Math.min(top, window.innerHeight / 3) - padY - BOTTOM_MARGIN;
     const vp = fitViewport(
       map.width,
       map.height,
-      this.container.clientWidth,
+      this.container.clientWidth - padX,
       availHeight,
       window.devicePixelRatio || 1,
     );
