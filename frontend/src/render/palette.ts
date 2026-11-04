@@ -13,6 +13,16 @@ export const MATERIAL_COLORS: Record<MaterialSymbol, string> = {
   G: "#f3c431", // oro
 };
 
+/** Nombre de cada material, para la leyenda y el panel de métricas. */
+export const MATERIAL_NAMES: Record<MaterialSymbol, string> = {
+  E: "Tierra",
+  S: "Piedra",
+  A: "Vacío",
+  T: "Estalagmita",
+  L: "Lava",
+  G: "Oro",
+};
+
 /** Elementos que se dibujan sobre los materiales. */
 export const OVERLAY = {
   /** Punta de la estalagmita. */
@@ -36,3 +46,10 @@ export const OVERLAY = {
   /** Casilla de inicio. */
   start: "#ffffff",
 } as const;
+
+/** Color representativo de cada material para muestras pequeñas (leyenda,
+ *  composición). La estalagmita usa el color de su punta, no el fondo de cueva. */
+export const SWATCH_COLORS: Record<MaterialSymbol, string> = {
+  ...MATERIAL_COLORS,
+  T: OVERLAY.stalagmite,
+};

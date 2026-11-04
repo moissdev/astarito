@@ -1,49 +1,233 @@
-/* Estilos mínimos de la vista provisional; el diseño definitivo llega en el checkpoint 15. */
+/* Estilos funcionales del checkpoint 14: layout, paneles y controles.
+   El pulido visual (tipografía, color, detalles) llega en el checkpoint 15. */
 :root {
   color-scheme: light dark;
   font-family: system-ui, sans-serif;
+  --gap: 1rem;
+  --border: color-mix(in srgb, currentColor 18%, transparent);
+  --muted: color-mix(in srgb, currentColor 65%, transparent);
+  --ok: #22c55e;
+  --warn: #f59e0b;
+  --danger: #ef4444;
 }
 
 body {
   margin: 0 auto;
-  max-width: 48rem;
-  padding: 1rem;
-}
-
-.row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-  margin-bottom: 0.75rem;
-}
-
-input[type="number"] {
-  width: 12rem;
-}
-
-pre {
-  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
-  line-height: 1.15;
-  overflow-x: auto;
-}
-
-.map-frame {
-  overflow: auto;
-}
-
-.map-canvas {
-  display: block;
-  margin: 0 auto;
-  image-rendering: pixelated;
-}
-
-#step {
-  flex: 1;
-  min-width: 10rem;
+  max-width: 72rem;
+  padding: var(--gap);
 }
 
 /* .row usa display:flex, que anula el atributo hidden. */
 [hidden] {
   display: none !important;
+}
+
+.app-header h1 {
+  margin: 0;
+}
+
+.app-header p {
+  margin: 0.25rem 0 var(--gap);
+  color: var(--muted);
+}
+
+/* Barra lateral a la izquierda y mapa a la derecha; en pantallas angostas se apilan. */
+.layout {
+  display: grid;
+  grid-template-columns: minmax(17rem, 22rem) 1fr;
+  gap: calc(var(--gap) * 1.5);
+  align-items: start;
+}
+
+@media (max-width: 760px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sidebar {
+  display: grid;
+  gap: var(--gap);
+  min-width: 0;
+}
+
+.panel {
+  border: 1px solid var(--border);
+  border-radius: 0.5rem;
+  padding: 0.75rem;
+}
+
+.panel h2 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+
+.panel h3 {
+  font-size: 0.9rem;
+  margin: 0.75rem 0 0.25rem;
+}
+
+.field + .field {
+  margin-top: 0.75rem;
+}
+
+.field > label,
+.label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.25rem;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.row + .row {
+  margin-top: 0.4rem;
+}
+
+input[type="number"] {
+  width: 9rem;
+}
+
+input[type="range"] {
+  flex: 1;
+  min-width: 8rem;
+}
+
+button.primary {
+  font-weight: 600;
+}
+
+.hint {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0.35rem 0 0;
+}
+
+.status {
+  margin: 0.5rem 0 0;
+  min-height: 1.2em;
+  font-size: 0.9rem;
+}
+
+.status.error {
+  color: var(--danger);
+}
+
+/* Resultado */
+.verdict {
+  font-weight: 700;
+  margin: 0.5rem 0;
+}
+
+.verdict.ok {
+  color: var(--ok);
+}
+
+.verdict.bad {
+  color: var(--danger);
+}
+
+.verdict.searching {
+  color: var(--muted);
+}
+
+.metrics dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.2rem 0.75rem;
+  margin: 0;
+  font-size: 0.9rem;
+}
+
+.metrics dt {
+  color: var(--muted);
+}
+
+.metrics dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.battery-head {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+
+.battery-track {
+  height: 0.75rem;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.battery-fill {
+  height: 100%;
+  background: var(--ok);
+  transition: width 80ms linear;
+}
+
+.battery-fill[data-level="warn"] {
+  background: var(--warn);
+}
+
+.battery-fill[data-level="danger"] {
+  background: var(--danger);
+}
+
+/* Muestras de color (leyenda y composición) */
+.swatch {
+  display: inline-block;
+  flex: none;
+  width: 0.9rem;
+  height: 0.9rem;
+  border-radius: 0.15rem;
+  outline: 1px solid var(--border);
+}
+
+.composition,
+.legend-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.25rem;
+  font-size: 0.9rem;
+}
+
+.composition li,
+.legend-list li {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.composition .count {
+  margin-left: auto;
+  font-variant-numeric: tabular-nums;
+}
+
+.legend-list + .legend-list {
+  margin-top: 0.75rem;
+}
+
+.legend-list small {
+  color: var(--muted);
+}
+
+/* Mapa */
+.map-frame {
+  overflow: auto;
+  min-width: 0;
+}
+
+.map-canvas {
+  display: block;
+  margin: 0 auto;
 }

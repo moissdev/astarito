@@ -6,7 +6,7 @@
 import type { Cell, MapResponse, MaterialSymbol, SolveResponse } from "../api/types";
 import type { AppState } from "../state/store";
 import { MATERIAL_COLORS, OVERLAY } from "./palette";
-import { cellCenter, cellOrigin, fitViewport, type Viewport } from "./viewport";
+import { cellAt, cellCenter, cellOrigin, fitViewport, type Viewport } from "./viewport";
 
 /** Margen inferior que se deja libre al ajustar el mapa a la altura de la ventana. */
 const BOTTOM_MARGIN = 16;
@@ -32,6 +32,11 @@ export class MapCanvas {
     if (!ctx) throw new Error("El navegador no soporta canvas 2D.");
     this.ctx = ctx;
 
+    // En la capa 1 el cursor indica que se puede elegir ahí el inicio.
+    this.element.addEventListener("mousemove", (event) => {
+      this.element.style.cursor = this.cellAtEvent(event)?.[1] === 0 ? "pointer" : "";
+    });
+
     const relayout = () => this.layout();
     new ResizeObserver(relayout).observe(container);
     window.addEventListener("resize", relayout);
@@ -43,6 +48,20 @@ export class MapCanvas {
     this.state = state;
     if (mapChanged) this.layout();
     else this.draw();
+  }
+
+  /** Llama a `handler` con la casilla bajo cada clic dentro del mapa. */
+  onCellClick(handler: (cell: Cell) => void): void {
+    this.element.addEventListener("click", (event) => {
+      const cell = this.cellAtEvent(event);
+      if (cell) handler(cell);
+    });
+  }
+
+  private cellAtEvent(event: MouseEvent): Cell | null {
+    if (!this.viewport) return null;
+    const rect = this.element.getBoundingClientRect();
+    return cellAt(this.viewport, event.clientX - rect.left, event.clientY - rect.top);
   }
 
   /** Recalcula la escala según el espacio disponible y redimensiona el canvas. */

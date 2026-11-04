@@ -1,132 +1,44 @@
-// Arranque. Vista provisional: controles mínimos, reproducción, resumen en texto y
-// el mapa en canvas. Los controles y paneles definitivos llegan en el checkpoint 14.
+// Arranque: arma el layout, monta los componentes y los conecta al store.
+// Cada componente expone `element` y, si cambia con el estado, `update(state)`.
 import "./styles/main.css";
-import {
-  SPEEDS,
-  changeSpeed,
-  play,
-  seek,
-  stepBy,
-  toEnd,
-  toStart,
-  togglePlay,
-} from "./playback/player";
+import "./playback/player";
 import { MapCanvas } from "./render/MapCanvas";
-import { getState, loadMap, solveFrom, subscribe, type AppState } from "./state/store";
+import { getState, loadMap, subscribe } from "./state/store";
+import { Controls, solveAndPlay } from "./ui/Controls";
+import { Legend } from "./ui/Legend";
+import { MetricsPanel } from "./ui/MetricsPanel";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
-  <h1>Astarito</h1>
-  <form id="map-form" class="row">
-    <label>Semilla <input id="seed" type="number" min="0" step="1" inputmode="numeric" /></label>
-    <button type="submit">Cargar</button>
-    <button type="button" id="random">Mapa aleatorio</button>
-  </form>
-  <form id="solve-form" class="row">
-    <label>Columna de inicio <select id="start"></select></label>
-    <button type="submit">Resolver</button>
-  </form>
-  <div class="row" id="playback" hidden>
-    <button type="button" id="to-start" aria-label="Ir al inicio">⏮</button>
-    <button type="button" id="step-back" aria-label="Paso atrás">◀</button>
-    <button type="button" id="toggle" aria-label="Reproducir">▶</button>
-    <button type="button" id="step-forward" aria-label="Paso adelante">▶|</button>
-    <button type="button" id="to-end" aria-label="Ir al final">⏭</button>
-    <label>Velocidad <select id="speed"></select></label>
-  </div>
-  <label class="row" id="step-row" hidden>
-    Paso <input id="step" type="range" min="0" value="0" />
-    <output id="step-out"></output>
-  </label>
-  <p id="status" role="status"></p>
-  <pre id="summary"></pre>
-  <div id="map" class="map-frame" role="img" aria-label="Mapa del corte sagital"></div>
+  <header class="app-header">
+    <h1>Astarito</h1>
+    <p>Robot minero que busca con A* la ruta de menor consumo hasta el oro.</p>
+  </header>
+  <main class="layout">
+    <aside class="sidebar"></aside>
+    <div class="map-frame" role="img" aria-label="Mapa del corte sagital, 25 columnas por 75 capas"></div>
+  </main>
 `;
 
-const seedInput = app.querySelector<HTMLInputElement>("#seed")!;
-const startSelect = app.querySelector<HTMLSelectElement>("#start")!;
-const playbackRow = app.querySelector<HTMLDivElement>("#playback")!;
-const toggleButton = app.querySelector<HTMLButtonElement>("#toggle")!;
-const speedSelect = app.querySelector<HTMLSelectElement>("#speed")!;
-const stepRow = app.querySelector<HTMLLabelElement>("#step-row")!;
-const stepInput = app.querySelector<HTMLInputElement>("#step")!;
-const stepOut = app.querySelector<HTMLOutputElement>("#step-out")!;
-const statusLine = app.querySelector<HTMLParagraphElement>("#status")!;
-const summaryBlock = app.querySelector<HTMLPreElement>("#summary")!;
-const mapCanvas = new MapCanvas(app.querySelector<HTMLDivElement>("#map")!);
+const sidebar = app.querySelector<HTMLElement>(".sidebar")!;
+const controls = new Controls();
+const metrics = new MetricsPanel();
+const legend = new Legend();
+sidebar.append(controls.element, metrics.element, legend.element);
 
-speedSelect.innerHTML = SPEEDS.map((v) => `<option value="${v}">${v} pasos/s</option>`).join("");
-
-// Columnas en base 1 para el usuario, base 0 para la API.
-startSelect.innerHTML = Array.from(
-  { length: 25 },
-  (_, x) => `<option value="${x}">${x + 1}</option>`,
-).join("");
-
-app.querySelector("#map-form")!.addEventListener("submit", (event) => {
-  event.preventDefault();
-  const seed = seedInput.valueAsNumber;
-  void loadMap(Number.isInteger(seed) && seed >= 0 ? seed : undefined);
+const mapCanvas = new MapCanvas(app.querySelector<HTMLDivElement>(".map-frame")!);
+// Clic en la capa 1: elige esa columna como inicio y resuelve.
+mapCanvas.onCellClick(([x, y]) => {
+  const { map, status } = getState();
+  const busy = status === "loading-map" || status === "solving";
+  if (y === 0 && map && !busy) solveAndPlay(x);
 });
-app.querySelector("#random")!.addEventListener("click", () => void loadMap());
-app.querySelector("#solve-form")!.addEventListener("submit", (event) => {
-  event.preventDefault();
-  // Al llegar la traza, la reproducción arranca sola desde el paso 0.
-  void solveFrom(Number(startSelect.value)).then(play);
-});
-stepInput.addEventListener("input", () => seek(stepInput.valueAsNumber));
-app.querySelector("#to-start")!.addEventListener("click", toStart);
-app.querySelector("#step-back")!.addEventListener("click", () => stepBy(-1));
-toggleButton.addEventListener("click", togglePlay);
-app.querySelector("#step-forward")!.addEventListener("click", () => stepBy(1));
-app.querySelector("#to-end")!.addEventListener("click", toEnd);
-speedSelect.addEventListener("change", () => changeSpeed(Number(speedSelect.value)));
 
-const STATUS_TEXT: Record<AppState["status"], string> = {
-  idle: "",
-  "loading-map": "Generando mapa…",
-  ready: "",
-  solving: "Buscando ruta…",
-  error: "",
-};
-
-subscribe(render);
-
-function render(state: AppState): void {
-  statusLine.textContent = state.error ? `Error: ${state.error}` : STATUS_TEXT[state.status];
-  const busy = state.status === "loading-map" || state.status === "solving";
-  for (const button of app.querySelectorAll("button")) button.disabled = busy;
-  startSelect.disabled = busy || !state.map;
-
-  if (state.map && document.activeElement !== seedInput) {
-    seedInput.value = String(state.map.seed);
-  }
-
-  const total = state.solution?.expansions.length ?? 0;
-  stepRow.hidden = playbackRow.hidden = total === 0;
-  toggleButton.textContent = state.playing ? "⏸" : "▶";
-  toggleButton.setAttribute("aria-label", state.playing ? "Pausar" : "Reproducir");
-  speedSelect.value = String(state.speed);
-  stepInput.max = String(total);
-  stepInput.value = String(state.step);
-  stepOut.textContent = `${state.step} / ${total}`;
-
-  summaryBlock.textContent = state.solution ? summaryText(state) : "";
+subscribe((state) => {
+  controls.update(state);
+  metrics.update(state);
   mapCanvas.update(state);
-}
-
-function summaryText({ solution, startX }: AppState): string {
-  if (!solution || startX === null) return "";
-  const lines = [
-    `Inicio: columna ${startX + 1}`,
-    solution.profitable
-      ? `Ruta rentable: costo ${solution.cost} %, batería restante ${solution.battery_left} %`
-      : `Sin ruta rentable. Costo mínimo real: ${solution.min_cost ?? "sin ruta técnica"}`,
-    `Nodos expandidos: ${solution.expanded}`,
-    `Composición: ${JSON.stringify(solution.composition)}`,
-  ];
-  return lines.join("\n");
-}
+});
 
 // Semilla inicial desde ?seed=… para poder compartir un mapa concreto.
 // Ojo: Number(null) es 0, por eso se revisa primero que el parámetro exista.
