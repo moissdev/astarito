@@ -1,9 +1,10 @@
-// Arranque. Vista provisional del checkpoint 11: muestra el mapa en crudo (un
-// carácter por casilla) para comprobar el cliente y el estado de punta a punta.
-// El canvas, la reproducción y los controles definitivos llegan en los
-// checkpoints 12 a 14.
+// Arranque. Vista provisional: controles mínimos, resumen en texto y el mapa en
+// canvas. El deslizador de pasos sirve para revisar el dibujo de la búsqueda
+// mientras llega la reproducción (checkpoint 13); los controles y paneles
+// definitivos llegan en el checkpoint 14.
 import "./styles/main.css";
-import { getState, loadMap, solveFrom, subscribe, type AppState } from "./state/store";
+import { MapCanvas } from "./render/MapCanvas";
+import { getState, loadMap, setStep, solveFrom, subscribe, type AppState } from "./state/store";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
@@ -17,16 +18,23 @@ app.innerHTML = `
     <label>Columna de inicio <select id="start"></select></label>
     <button type="submit">Resolver</button>
   </form>
+  <label class="row" id="step-row" hidden>
+    Paso <input id="step" type="range" min="0" value="0" />
+    <output id="step-out"></output>
+  </label>
   <p id="status" role="status"></p>
   <pre id="summary"></pre>
-  <pre id="grid" aria-label="Mapa en crudo"></pre>
+  <div id="map" class="map-frame" role="img" aria-label="Mapa del corte sagital"></div>
 `;
 
 const seedInput = app.querySelector<HTMLInputElement>("#seed")!;
 const startSelect = app.querySelector<HTMLSelectElement>("#start")!;
+const stepRow = app.querySelector<HTMLLabelElement>("#step-row")!;
+const stepInput = app.querySelector<HTMLInputElement>("#step")!;
+const stepOut = app.querySelector<HTMLOutputElement>("#step-out")!;
 const statusLine = app.querySelector<HTMLParagraphElement>("#status")!;
 const summaryBlock = app.querySelector<HTMLPreElement>("#summary")!;
-const gridBlock = app.querySelector<HTMLPreElement>("#grid")!;
+const mapCanvas = new MapCanvas(app.querySelector<HTMLDivElement>("#map")!);
 
 // Columnas en base 1 para el usuario, base 0 para la API.
 startSelect.innerHTML = Array.from(
@@ -42,8 +50,10 @@ app.querySelector("#map-form")!.addEventListener("submit", (event) => {
 app.querySelector("#random")!.addEventListener("click", () => void loadMap());
 app.querySelector("#solve-form")!.addEventListener("submit", (event) => {
   event.preventDefault();
-  void solveFrom(Number(startSelect.value));
+  // Sin reproducción todavía: al terminar se muestra la búsqueda completa.
+  void solveFrom(Number(startSelect.value)).then(() => setStep(Infinity));
 });
+stepInput.addEventListener("input", () => setStep(stepInput.valueAsNumber));
 
 const STATUS_TEXT: Record<AppState["status"], string> = {
   idle: "",
@@ -64,18 +74,15 @@ function render(state: AppState): void {
   if (state.map && document.activeElement !== seedInput) {
     seedInput.value = String(state.map.seed);
   }
-  gridBlock.textContent = state.map ? rawGrid(state) : "";
-  summaryBlock.textContent = state.solution ? summaryText(state) : "";
-}
 
-/** Una línea por capa; la ruta se marca con "*" y el inicio con "@". */
-function rawGrid({ map, solution }: AppState): string {
-  if (!map) return "";
-  const rows = map.grid.map((row) => row.split(""));
-  for (const [x, y] of solution?.path ?? []) rows[y]![x] = "*";
-  const start = solution?.path[0];
-  if (start) rows[start[1]]![start[0]] = "@";
-  return rows.map((row, y) => `${String(y + 1).padStart(2)} ${row.join("")}`).join("\n");
+  const total = state.solution?.expansions.length ?? 0;
+  stepRow.hidden = total === 0;
+  stepInput.max = String(total);
+  stepInput.value = String(state.step);
+  stepOut.textContent = `${state.step} / ${total}`;
+
+  summaryBlock.textContent = state.solution ? summaryText(state) : "";
+  mapCanvas.update(state);
 }
 
 function summaryText({ solution, startX }: AppState): string {

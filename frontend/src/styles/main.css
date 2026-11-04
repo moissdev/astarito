@@ -27,3 +27,23 @@ pre {
   line-height: 1.15;
   overflow-x: auto;
 }
+
+.map-frame {
+  overflow: auto;
+}
+
+.map-canvas {
+  display: block;
+  margin: 0 auto;
+  image-rendering: pixelated;
+}
+
+#step {
+  flex: 1;
+  min-width: 10rem;
+}
+
+/* .row usa display:flex, que anula el atributo hidden. */
+[hidden] {
+  display: none !important;
+}
