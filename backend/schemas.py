@@ -30,6 +30,7 @@ class ExpansionOut(BaseModel):
     g: int
     h: int
     f: int
+    pushed: list[tuple[int, int]]    # casillas que entraron a la frontera en este paso
 
 
 class SolveResponse(BaseModel):

@@ -76,7 +76,8 @@ def solve(request: SolveRequest) -> SolveResponse:
         min_cost=None if exact == math.inf else int(exact),
         path=list(result.path),
         expansions=[
-            ExpansionOut(x=e.x, y=e.y, g=e.g, h=e.h, f=e.f) for e in result.expansions
+            ExpansionOut(x=e.x, y=e.y, g=e.g, h=e.h, f=e.f, pushed=list(e.pushed))
+            for e in result.expansions
         ],
         expanded=summary.expanded,
         # "earth", "stone", "empty", "stalagmite", como en el contrato de la API.

@@ -87,8 +87,8 @@ def test_solve_matches_core(start_x: int) -> None:
     assert body.battery_left == summary.battery_left
     assert body.min_cost == exact
     assert body.path == list(result.path)
-    assert [(e.x, e.y, e.g, e.h, e.f) for e in body.expansions] == [
-        (e.x, e.y, e.g, e.h, e.f) for e in result.expansions
+    assert [(e.x, e.y, e.g, e.h, e.f, e.pushed) for e in body.expansions] == [
+        (e.x, e.y, e.g, e.h, e.f, list(e.pushed)) for e in result.expansions
     ]
     assert body.expanded == len(result.expansions)
     assert body.composition == {

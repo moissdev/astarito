@@ -114,6 +114,30 @@ def test_trace_invariants(game_map: GameMap) -> None:
             assert (last.x, last.y) == result.path[-1] and last.g == result.cost
 
 
+@pytest.mark.parametrize("game_map", maps(), ids=map_id)
+def test_pushed_rebuilds_frontier(game_map: GameMap) -> None:
+    """Con `pushed` se reconstruye la frontera paso a paso: todo estado expandido
+    (salvo el inicio) entró antes a la frontera, y lo que entra es un sucesor
+    válido del estado expandido que todavía no está cerrado."""
+    blocked = blocked_cells(game_map)
+    for start_x in range(WIDTH):
+        result = a_star(game_map, start_x)
+        frontier: set[tuple[int, int]] = {(start_x, 0)}
+        closed: set[tuple[int, int]] = set()
+        for e in result.expansions:
+            cell = (e.x, e.y)
+            assert cell in frontier, "solo se expande lo que está en la frontera"
+            frontier.discard(cell)
+            closed.add(cell)
+            next_cells = {nxt for nxt, _ in successors(game_map, blocked, cell)}
+            assert len(e.pushed) == len(set(e.pushed))
+            for nxt in e.pushed:
+                assert nxt in next_cells and nxt not in closed
+                frontier.add(nxt)
+        if result.found:
+            assert result.expansions[-1].pushed == (), "la meta no genera sucesores"
+
+
 def test_search_is_deterministic() -> None:
     game_map = random_map(3, WIDTH, HEIGHT, SEARCH_WEIGHTS)
     assert a_star(game_map, 12) == a_star(game_map, 12)
