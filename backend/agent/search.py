@@ -20,6 +20,10 @@ class Expansion:
     g: int                         # costo acumulado desde el inicio
     h: int                         # costo restante estimado
     f: int                         # g + h
+    # Casillas que este paso metió a la frontera (nuevas o con mejor g), en el
+    # orden en que se generaron. Permite reconstruir la frontera en cualquier
+    # paso de la reproducción sin repetir la búsqueda en el cliente.
+    pushed: tuple[Cell, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -80,11 +84,11 @@ def a_star(
         closed.add(cell)
         x, y = cell
         h = int(h_table[y][x])
-        expansions.append(Expansion(x=x, y=y, g=g, h=h, f=g + h))
 
         # La prueba de meta se hace al expandir, no al generar: así la primera
         # meta que sale de la frontera es la de menor costo.
         if cell in goals:
+            expansions.append(Expansion(x=x, y=y, g=g, h=h, f=g + h))
             return SearchResult(
                 found=True,
                 path=_reconstruct(parent, cell),
@@ -92,6 +96,7 @@ def a_star(
                 expansions=tuple(expansions),
             )
 
+        pushed: list[Cell] = []
         for nxt, step in successors(game_map, blocked, cell):
             new_g = g + step
             if nxt in closed or not can_still_reach(new_g, nxt):
@@ -102,6 +107,8 @@ def a_star(
                 nh = h_table[nxt[1]][nxt[0]]
                 # Prioridad (f, -g): menor f primero y, a igual f, mayor g.
                 heapq.heappush(frontier, (new_g + weight * nh, -new_g, next(counter), nxt))
+                pushed.append(nxt)
+        expansions.append(Expansion(x=x, y=y, g=g, h=h, f=g + h, pushed=tuple(pushed)))
 
     return SearchResult(found=False, path=(), cost=None, expansions=tuple(expansions))
 

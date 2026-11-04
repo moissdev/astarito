@@ -13,6 +13,10 @@ export interface AppState {
   solution: SolveResponse | null;
   /** Expansiones ya reproducidas (0 = ninguna). Lo usa la reproducción. */
   step: number;
+  /** Si la reproducción avanza sola. */
+  playing: boolean;
+  /** Velocidad de la reproducción, en expansiones por segundo. */
+  speed: number;
   error: string | null;
 }
 
@@ -24,6 +28,8 @@ let state: AppState = {
   startX: null,
   solution: null,
   step: 0,
+  playing: false,
+  speed: 60,
   error: null,
 };
 const listeners = new Set<Listener>();
@@ -54,7 +60,7 @@ function messageOf(error: unknown): string {
 /** Carga un mapa; sin semilla, el servidor elige una. Reinicia inicio y traza. */
 export async function loadMap(seed?: number): Promise<void> {
   const id = ++latestRequest;
-  setState({ status: "loading-map", startX: null, solution: null, step: 0, error: null });
+  setState({ status: "loading-map", startX: null, solution: null, step: 0, playing: false, error: null });
   try {
     const map = await fetchMap(seed);
     if (id !== latestRequest) return;
@@ -70,7 +76,7 @@ export async function solveFrom(startX: number): Promise<void> {
   const { map } = state;
   if (!map) return;
   const id = ++latestRequest;
-  setState({ status: "solving", startX, solution: null, step: 0, error: null });
+  setState({ status: "solving", startX, solution: null, step: 0, playing: false, error: null });
   try {
     const solution = await solve(map.seed, startX);
     if (id !== latestRequest) return;
@@ -79,6 +85,16 @@ export async function solveFrom(startX: number): Promise<void> {
     if (id !== latestRequest) return;
     setState({ status: "error", error: messageOf(error) });
   }
+}
+
+/** Inicia o detiene la reproducción automática. */
+export function setPlaying(playing: boolean): void {
+  if (playing !== state.playing) setState({ playing });
+}
+
+/** Cambia la velocidad de la reproducción (expansiones por segundo). */
+export function setSpeed(speed: number): void {
+  setState({ speed });
 }
 
 /** Fija el paso de la reproducción, acotado a la longitud de la traza. */

@@ -31,6 +31,8 @@ export interface Expansion {
   g: number;
   h: number;
   f: number;
+  /** Casillas que este paso metió a la frontera (nuevas o con mejor g). */
+  pushed: Cell[];
 }
 
 export interface SolveResponse {
