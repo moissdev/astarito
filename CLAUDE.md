@@ -37,6 +37,7 @@ Moisés, estudiante de último año de Ing. en Software (México). Fuerte en fro
 - API **sin estado**: el mapa se regenera desde la semilla. `POST /api/solve` devuelve la traza completa y el navegador la reproduce (sin WebSockets). Endpoints: `GET /api/health`, `GET /api/map?seed`, `POST /api/solve`.
 - Despliegue en **Vercel Hobby** (gratis, uso personal/no comercial): FastAPI detectado por dependencias, `[tool.vercel] entrypoint = "backend.api:app"` en `pyproject.toml`; frontend compilado en `public/`.
 - **Validado en el checkpoint 2** (2026-11-03): FastAPI + estáticos en `public/` funcionan en un solo proyecto; Python 3.12 confirmado en el build; la producción es pública en incógnito (Deployment Protection estándar). El plan B (dos proyectos con CORS) queda descartado.
+- **`public/` se versiona** (decidido en el checkpoint 11, 2026-11-03): el preset de FastAPI decide qué estáticos sirve antes de correr `[tool.vercel.scripts] build`, así que un `public/` generado en Vercel no se publica (`/` devolvía 404 de FastAPI). Vercel no compila el frontend; antes de cada commit que toque `frontend/` hay que correr `npm run build` y commitear `public/` junto con el código.
 - Rama de producción en Vercel: `main`. Se trabaja en `develop` y el usuario fusiona `develop` → `main` para desplegar.
 
 ## Estructura
@@ -79,7 +80,7 @@ El proyecto se llama **Astarito** (juego de palabras A-Star-ito); repo `astarito
 **Despliegue en Vercel (cuándo)**
 - **Checkpoint 2**: primer despliegue mínimo (`/api/health` + página estática) para validar el layout FastAPI + `public/` y la Deployment Protection (revisar en ventana de incógnito). Si falla, aplicar el plan B (dos proyectos con CORS) antes de seguir.
 - **Checkpoint 10**: probar `/api/map` y `/api/solve` en producción; medir el tiempo de la primera petición (arranque en frío).
-- **Checkpoint 11**: decidir si `public/` se versiona o lo construye Vercel con `npm run build` (probar primero la segunda; si da problemas, versionarlo).
+- **Checkpoint 11** (hecho): se probó que Vercel construyera `public/` y no sirvió los archivos generados; `public/` se versiona.
 - **Antes de `v1.0`**: pasada completa en producción desde incógnito, escritorio y móvil.
 - Los despliegues y vincular el repo a Vercel los hace el usuario o requieren su autorización; no ejecutar comandos de despliegue por cuenta propia.
 
@@ -95,7 +96,7 @@ Rechazo de semillas ≈ 0.1–0.2 %; ≈ 97 % de inicios rentables; costo mínim
 ## Comandos
 - Pruebas: `pytest` (antes de cada commit)
 - API local: `uvicorn backend.api:app --reload`
-- Frontend: `cd frontend && npm install && npm run dev` / `npm run build` (salida en `../public`)
+- Frontend: `cd frontend && npm install && npm run dev` / `npm run build` (salida en `../public`, que se versiona: recompilar antes de cada commit del frontend)
 
 ## Convenciones
 - Python 3.12, tipado estático, `dataclass(frozen=True)` para estructuras de datos.
