@@ -25,6 +25,8 @@ export const OVERLAY = {
   blockedHatch: "rgba(0, 0, 0, 0.55)",
   /** Casillas ya expandidas (conjunto cerrado). */
   closed: "rgba(86, 204, 242, 0.5)",
+  /** Contorno de las casillas en la frontera (generadas, aún sin expandir). */
+  frontier: "#c4a6ff",
   /** Contorno del nodo que se expande en el paso actual. */
   current: "#ffffff",
   /** Ruta final. */

@@ -1,10 +1,18 @@
-// Arranque. Vista provisional: controles mínimos, resumen en texto y el mapa en
-// canvas. El deslizador de pasos sirve para revisar el dibujo de la búsqueda
-// mientras llega la reproducción (checkpoint 13); los controles y paneles
-// definitivos llegan en el checkpoint 14.
+// Arranque. Vista provisional: controles mínimos, reproducción, resumen en texto y
+// el mapa en canvas. Los controles y paneles definitivos llegan en el checkpoint 14.
 import "./styles/main.css";
+import {
+  SPEEDS,
+  changeSpeed,
+  play,
+  seek,
+  stepBy,
+  toEnd,
+  toStart,
+  togglePlay,
+} from "./playback/player";
 import { MapCanvas } from "./render/MapCanvas";
-import { getState, loadMap, setStep, solveFrom, subscribe, type AppState } from "./state/store";
+import { getState, loadMap, solveFrom, subscribe, type AppState } from "./state/store";
 
 const app = document.querySelector<HTMLDivElement>("#app")!;
 app.innerHTML = `
@@ -18,6 +26,14 @@ app.innerHTML = `
     <label>Columna de inicio <select id="start"></select></label>
     <button type="submit">Resolver</button>
   </form>
+  <div class="row" id="playback" hidden>
+    <button type="button" id="to-start" aria-label="Ir al inicio">⏮</button>
+    <button type="button" id="step-back" aria-label="Paso atrás">◀</button>
+    <button type="button" id="toggle" aria-label="Reproducir">▶</button>
+    <button type="button" id="step-forward" aria-label="Paso adelante">▶|</button>
+    <button type="button" id="to-end" aria-label="Ir al final">⏭</button>
+    <label>Velocidad <select id="speed"></select></label>
+  </div>
   <label class="row" id="step-row" hidden>
     Paso <input id="step" type="range" min="0" value="0" />
     <output id="step-out"></output>
@@ -29,12 +45,17 @@ app.innerHTML = `
 
 const seedInput = app.querySelector<HTMLInputElement>("#seed")!;
 const startSelect = app.querySelector<HTMLSelectElement>("#start")!;
+const playbackRow = app.querySelector<HTMLDivElement>("#playback")!;
+const toggleButton = app.querySelector<HTMLButtonElement>("#toggle")!;
+const speedSelect = app.querySelector<HTMLSelectElement>("#speed")!;
 const stepRow = app.querySelector<HTMLLabelElement>("#step-row")!;
 const stepInput = app.querySelector<HTMLInputElement>("#step")!;
 const stepOut = app.querySelector<HTMLOutputElement>("#step-out")!;
 const statusLine = app.querySelector<HTMLParagraphElement>("#status")!;
 const summaryBlock = app.querySelector<HTMLPreElement>("#summary")!;
 const mapCanvas = new MapCanvas(app.querySelector<HTMLDivElement>("#map")!);
+
+speedSelect.innerHTML = SPEEDS.map((v) => `<option value="${v}">${v} pasos/s</option>`).join("");
 
 // Columnas en base 1 para el usuario, base 0 para la API.
 startSelect.innerHTML = Array.from(
@@ -50,10 +71,16 @@ app.querySelector("#map-form")!.addEventListener("submit", (event) => {
 app.querySelector("#random")!.addEventListener("click", () => void loadMap());
 app.querySelector("#solve-form")!.addEventListener("submit", (event) => {
   event.preventDefault();
-  // Sin reproducción todavía: al terminar se muestra la búsqueda completa.
-  void solveFrom(Number(startSelect.value)).then(() => setStep(Infinity));
+  // Al llegar la traza, la reproducción arranca sola desde el paso 0.
+  void solveFrom(Number(startSelect.value)).then(play);
 });
-stepInput.addEventListener("input", () => setStep(stepInput.valueAsNumber));
+stepInput.addEventListener("input", () => seek(stepInput.valueAsNumber));
+app.querySelector("#to-start")!.addEventListener("click", toStart);
+app.querySelector("#step-back")!.addEventListener("click", () => stepBy(-1));
+toggleButton.addEventListener("click", togglePlay);
+app.querySelector("#step-forward")!.addEventListener("click", () => stepBy(1));
+app.querySelector("#to-end")!.addEventListener("click", toEnd);
+speedSelect.addEventListener("change", () => changeSpeed(Number(speedSelect.value)));
 
 const STATUS_TEXT: Record<AppState["status"], string> = {
   idle: "",
@@ -76,7 +103,10 @@ function render(state: AppState): void {
   }
 
   const total = state.solution?.expansions.length ?? 0;
-  stepRow.hidden = total === 0;
+  stepRow.hidden = playbackRow.hidden = total === 0;
+  toggleButton.textContent = state.playing ? "⏸" : "▶";
+  toggleButton.setAttribute("aria-label", state.playing ? "Pausar" : "Reproducir");
+  speedSelect.value = String(state.speed);
   stepInput.max = String(total);
   stepInput.value = String(state.step);
   stepOut.textContent = `${state.step} / ${total}`;

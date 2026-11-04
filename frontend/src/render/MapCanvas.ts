@@ -1,9 +1,9 @@
 // Dibujo del mapa en canvas, en dos capas:
 // - Base (fija por mapa): materiales, cuadrícula y casillas bloqueadas. Se pinta
 //   una vez en un canvas fuera de pantalla y se copia en cada cuadro.
-// - Búsqueda (cambia en cada paso): casillas cerradas, nodo actual, ruta e inicio.
+// - Búsqueda (cambia en cada paso): cerradas, frontera, nodo actual, ruta e inicio.
 // Así la reproducción solo vuelve a pintar lo que cambia.
-import type { Cell, MapResponse, MaterialSymbol } from "../api/types";
+import type { Cell, MapResponse, MaterialSymbol, SolveResponse } from "../api/types";
 import type { AppState } from "../state/store";
 import { MATERIAL_COLORS, OVERLAY } from "./palette";
 import { cellCenter, cellOrigin, fitViewport, type Viewport } from "./viewport";
@@ -21,6 +21,8 @@ export class MapCanvas {
   /** Capa base ya pintada y la clave (mapa + escala) con que se pintó. */
   private base: HTMLCanvasElement | null = null;
   private baseKey = "";
+  /** Índice de la traza actual, para obtener la frontera de cualquier paso. */
+  private trace: TraceIndex | null = null;
 
   constructor(private readonly container: HTMLElement) {
     this.element = document.createElement("canvas");
@@ -109,6 +111,10 @@ export class MapCanvas {
       const expansions = solution.expansions;
       const shown = Math.min(step, expansions.length);
 
+      // Frontera: casillas que ya entraron y aún no se expanden, con contorno.
+      if (this.trace?.solution !== solution) this.trace = indexTrace(solution, state.map!);
+      drawFrontier(ctx, vp, this.trace, shown);
+
       // Cerrados: todo lo expandido antes del paso actual.
       ctx.fillStyle = OVERLAY.closed;
       for (let i = 0; i < shown - 1; i++) {
@@ -146,6 +152,57 @@ export class MapCanvas {
       ctx.stroke();
     }
   }
+}
+
+/**
+ * Para cada casilla (índice y * ancho + x): en qué paso entró a la frontera y en
+ * qué paso se expandió; -1 si nunca. "Paso k" = ya se reprodujeron k expansiones,
+ * así que lo que empuja la expansión i entra en el paso i + 1. El inicio está en
+ * la frontera desde el paso 0.
+ */
+interface TraceIndex {
+  solution: SolveResponse;
+  width: number;
+  enteredAt: Int32Array;
+  expandedAt: Int32Array;
+  /** Casillas que alguna vez estuvieron en la frontera, para no recorrer el mapa entero. */
+  touched: number[];
+}
+
+function indexTrace(solution: SolveResponse, map: MapResponse): TraceIndex {
+  const width = map.width;
+  const enteredAt = new Int32Array(width * map.height).fill(-1);
+  const expandedAt = new Int32Array(width * map.height).fill(-1);
+  const touched: number[] = [];
+  const enter = (index: number, step: number) => {
+    if (enteredAt[index] !== -1) return;
+    enteredAt[index] = step;
+    touched.push(index);
+  };
+
+  solution.expansions.forEach((e, i) => {
+    if (i === 0) enter(e.y * width + e.x, 0);
+    expandedAt[e.y * width + e.x] = i + 1;
+    for (const [x, y] of e.pushed) enter(y * width + x, i + 1);
+  });
+  return { solution, width, enteredAt, expandedAt, touched };
+}
+
+/** Contorno en las casillas que están en la frontera tras `step` expansiones. */
+function drawFrontier(ctx: CanvasRenderingContext2D, vp: Viewport, trace: TraceIndex, step: number): void {
+  const s = vp.cell;
+  ctx.strokeStyle = OVERLAY.frontier;
+  ctx.lineWidth = Math.max(1, s * 0.14);
+  const inset = ctx.lineWidth / 2;
+  ctx.beginPath();
+  for (const index of trace.touched) {
+    const entered = trace.enteredAt[index]!;
+    const expanded = trace.expandedAt[index]!;
+    if (entered > step || (expanded !== -1 && expanded <= step)) continue;
+    const [left, top] = cellOrigin(vp, index % trace.width, Math.floor(index / trace.width));
+    ctx.rect(left + inset, top + inset, s - 2 * inset, s - 2 * inset);
+  }
+  ctx.stroke();
 }
 
 /** Materiales, cuadrícula y rayado de bloqueadas. */
