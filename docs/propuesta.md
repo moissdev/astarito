@@ -197,8 +197,8 @@ El programa se divide en un backend en Python que contiene todo el agente y un f
 2. El backend genera el mapa (descartando semillas sin ruta técnica) y devuelve la cuadrícula, las casillas bloqueadas, las casillas de oro y la semilla utilizada.
 3. El usuario elige una columna de la capa 1 como casilla de inicio.
 4. El frontend envía `POST /api/solve` con la semilla y la columna elegida.
-5. El backend regenera el mapa, calcula la tabla de la heurística, ejecuta A\* con w = 1 y responde con la ruta, el costo, el veredicto (rentable o no) y las expansiones en orden.
-6. El frontend reproduce las expansiones y dibuja la ruta, con controles de velocidad, pausa y avance paso a paso.
+5. El backend regenera el mapa, calcula la tabla de la heurística, ejecuta A\* con w = 1 y responde con la ruta, el costo, el veredicto (rentable o no) y las expansiones en orden, cada una con las casillas que agregó a la frontera.
+6. El frontend reproduce las expansiones (cerrados y frontera en cada paso) y dibuja la ruta, con controles de velocidad, pausa y avance paso a paso.
 
 ### Decisiones de diseño
 
@@ -431,6 +431,7 @@ class Expansion:
     g: int
     h: int
     f: int
+    pushed: tuple[Cell, ...] = ()   # casillas que este paso metió a la frontera
 
 @dataclass(frozen=True)
 class SearchResult:
@@ -494,6 +495,7 @@ class ExpansionOut(BaseModel):
     g: int
     h: int
     f: int
+    pushed: list[tuple[int, int]]    # casillas que entraron a la frontera en este paso
 
 class SolveResponse(BaseModel):
     profitable: bool
@@ -553,7 +555,9 @@ def solve(request: SolveRequest) -> SolveResponse:
   "battery_left": 10,
   "min_cost": 90,
   "path": [[12, 0], [12, 1], [12, 2]],
-  "expansions": [{"x": 12, "y": 0, "g": 0, "h": 78, "f": 78}],
+  "expansions": [
+    {"x": 12, "y": 0, "g": 0, "h": 78, "f": 78, "pushed": [[11, 0], [13, 0], [12, 1]]}
+  ],
   "expanded": 1000,
   "composition": {"earth": 66, "stone": 8, "empty": 5, "stalagmite": 0}
 }
